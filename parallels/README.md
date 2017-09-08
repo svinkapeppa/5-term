@@ -1,4 +1,5 @@
-# Многопроцессорные вычисления
+# Multiprocessor computing
 
 task_1:
-  Условие первого задания можно найти в файле task.pdf 
+
+&emsp; Read task.pdf in order to understand the task.

@@ -1,5 +1,8 @@
-# Первое задание
-  main.c - основной код
-  task.pdf - условие задания
-  runner.h - дополнительная библиотека
-  graph.pdf - графики, требуемые в задании
+# First task
+&emsp;main.c - main code
+
+&emsp;task.pdf - formulated task
+
+&emsp;runner.h - extra library (in order to measure time and etc.)
+
+&emsp;graph.pdf - graphs which were asked in the task
