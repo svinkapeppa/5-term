@@ -5,6 +5,6 @@
 
 &emsp;runner.h - extra library (in order to measure time and etc.)
 
-&emsp;graph.pdf - graphs which were asked in the task
+&emsp;graph.ipynb - graphs which were asked in the task
 
 &emsp;sequential.c - code to measure T_1
