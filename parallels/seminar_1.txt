@@ -1,0 +1,193 @@
+5 Сентября 2017
+
+Шегай
+
+<run.c>
+#include <stdio.h>
+
+int main() {
+  for (int i = 0; i < 4; ++i) {
+    printf("Hello, world!\n");
+  }
+
+  return 0;
+}
+
+gcc -o run run.c
+
+Это был просто Hello, world. Теперь мы хотим сделать
+OpenMp программу.
+
+
+
+<run.c>
+#include <stdio.h>
+#include <omp.h>
+
+int main() {
+  #pragma omp parallel for
+  for (int i = 0; i < 4; ++i) {
+    printf("Hello, world! %d\n", omp_get_thread_num());
+  }
+
+  return 0;
+}
+
+gcc -o run run.c -fopenmp
+
+
+
+Задача. Перемножить два вектора
+
+int scalar(int *a, int *b, size_t len) {
+  int rez = 0;
+
+  #pragma omp parallel for
+  for (int i = 0; i < len; ++i) {
+    rez += a[i]*b[i];
+  }
+
+  return rez;
+}
+
+omp_set_num_threads(int n);
+OMP_NUM_THREADS - соответствующая переменная окружения
+
+В той реализации задачи, которую мы написали есть проблема.
+Там race condition - обращение к rez из разных потоков не синхронизированы.
+
+int scalar(int *a, int *b, size_t len) {
+  int rez = 0;
+
+  omp_lock_t lock;
+  omp_init_lock(&lock);
+
+  #pragma omp parallel for
+  for (int i = 0; i < len; ++i) {
+    omp_set_lock(&lock);
+    rez += a[i]*b[i];
+    omp_unset_lock(&lock);
+  }
+
+  omp_destroy_lock(&lock);
+
+  return rez;
+}
+
+Получили последовательную программу.
+
+
+
+int scalar(int *a, int *b, size_t len) {
+  int rez = 0;
+
+  omp_lock_t lock;
+  omp_init_lock(&lock);
+
+  #pragma omp parallel for
+  for (int i = 0; i < len; ++i) {
+    int t = a[i]*b[i];
+    omp_set_lock(&lock);
+    rez += t;
+    omp_unset_lock(&lock);
+  }
+
+  omp_destroy_lock(&lock);
+
+  return rez;
+}
+
+Вынесли часть, которую можно делать параллельно.
+
+
+
+int scalar(int *a, int *b, size_t len) {
+  int rez = 0;
+
+  #pragma omp parallel for
+  for (int i = 0; i < len; ++i) {
+    #pragma omp critical
+    {
+      rez += a[i]*b[i];
+    }
+  }
+
+  return rez;
+}
+
+Более omp-шный вариант.
+
+
+
+Есть еще вариант - использовать атомарные операции
+
+int scalar(int *a, int *b, size_t len) {
+  int rez = 0;
+
+  #pragma omp parallel for
+  for (int i = 0; i < len; ++i) {
+    #pragma omp atomic update <write, read, capture>
+    rez += a[i]*b[i];
+  }
+
+  return rez;
+}
+
+
+
+Можно менять scope переменных.
+
+int scalar(int *a, int *b, size_t len) {
+  int i, rez = 0;
+
+  #pragma omp parallel for private(i) shared(rez)
+  for (i = 0; i < len; ++i) {
+    #pragma omp atomic update <write, read, capture>
+    rez += a[i]*b[i];
+  }
+
+  return rez;
+}
+
+
+
+int scalar(int *a, int *b, size_t len) {
+  int i, rez = 0;
+
+  #pragma omp parallel for reduction(+; ret)
+  for (int i = 0; i < len; ++i) {
+    rez += a[i]*b[i];
+  }
+
+  return rez;
+}
+
+Самый быстрый способ
+
+
+
+int scalar(int *a, int *b, size_t len) {
+  int i, rez = 0;
+
+  #pragma omp parallel for reduction(+; ret) schedule <auto, static, dynamic, guided>
+  for (int i = 0; i < len; ++i) {
+    rez += a[i]*b[i];
+  }
+
+  return rez;
+}
+
+
+
+T_p - время работы программы на p процессорах (в данном случае - потоках).
+S_p = T_1 / T_p - ускорение на p.
+E_p = S_p / p - эффективность.
+
+
+
+Метод Монте-Карло для одномерного случайного блуждания.
+
+p - вероятность идти направо
+(1 - p) - налево 
+
+double ts = omp_get_mtime();
