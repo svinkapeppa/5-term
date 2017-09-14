@@ -24,9 +24,6 @@ void ctor(void *context) {
   ctx->data = calloc(ctx->n, sizeof(int));
   assert(ctx->data);
 
-  ctx->sorted = calloc(ctx->n, sizeof(int));
-  assert(ctx->sorted);
-
   srand(time(NULL));
 
   for (i = 0; i < ctx->n; ++i) {
@@ -62,16 +59,26 @@ int bin_search(int *array, int edge, int right_bound) {
   }
 }
 
-void sort(int *a, int len) {
+int * sort(int *a, int len) {
   int i, j, tmp;
+  int *sorted;
+
+  sorted = calloc(len, sizeof(int));
+  assert(sorted);
+
+  for (i = 0; i < len; ++i) {
+    sorted[i] = a[i];
+  }
 
   for (i = 1; i < len; ++i) {
-    for (j = i; j > 0 && a[j - 1] > a[j]; --j) {
-      tmp = a[j-1];
-      a[j-1] = a[j];
-      a[j] = tmp;
+    for (j = i; j > 0 && sorted[j - 1] > sorted[j]; --j) {
+      tmp = sorted[j-1];
+      sorted[j-1] = sorted[j];
+      sorted[j] = tmp;
     }
   }
+
+  return sorted;
 }
 
 void left_merge(int *final, int *left, int *right, int lind, int rind) {
@@ -162,23 +169,11 @@ int * turn(void *context, int *a, int len) {
   left_index = half / 2;
 
   if (len <= ctx->m) {
-    sort(a, len);
-    printf("ALLO");
-    return a;
+    return sort(a, len);
   }
-
-  printf("CHECK");
-
-  sorted_left = calloc(half, sizeof(int));
-  assert(sorted_left);
-  
-  sorted_right = calloc(len-half, sizeof(int));
-  assert(sorted_right);
 
   sorted_final = calloc(len, sizeof(int));
   assert(sorted_final);
-
-  printf("HERE");
 
   #pragma omp parallel
   {
