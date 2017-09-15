@@ -24,10 +24,14 @@ void ctor(void *context) {
   ctx->data = calloc(ctx->n, sizeof(int));
   assert(ctx->data);
 
+  ctx->sorted = calloc(ctx->n, sizeof(int));
+  assert(ctx->sorted);
+
   srand(time(NULL));
 
   for (i = 0; i < ctx->n; ++i) {
     ctx->data[i] = rand();
+    ctx->sorted[i] = ctx->data[i];
   }
 }
 
@@ -40,45 +44,34 @@ void dtor(void *context) {
   free(ctx->sorted);
 }
 
-int bin_search(int *array, int edge, int right_bound) {
-  int left, right, mid;
+int bin_search(int *a, int key, int left, int right) {
+   int mid;
 
-  left = 0;
-  right =  right_bound - 1;
-
-  mid = (left + right) / 2;
-
-  if (left == right) {
+   if (right - left <= 1) {
     return left;
   } else {
-    if (array[mid] < edge) {
-      bin_search(array, mid, right);
+    mid = (left + right) / 2;
+
+    if (a[mid] < key) {
+      bin_search(a, key, mid, right);
     } else {
-      bin_search(array, left, mid);
+      bin_search(a, key, left, mid);
     }
   }
 }
 
-int * sort(int *a, int len) {
+void sort(int *a, int left, int right) {
   int i, j, tmp;
-  int *sorted;
 
-  sorted = calloc(len, sizeof(int));
-  assert(sorted);
-
-  for (i = 0; i < len; ++i) {
-    sorted[i] = a[i];
-  }
-
-  for (i = 1; i < len; ++i) {
-    for (j = i; j > 0 && sorted[j - 1] > sorted[j]; --j) {
-      tmp = sorted[j-1];
-      sorted[j-1] = sorted[j];
-      sorted[j] = tmp;
+  for (i = left + 1; i < right; ++i) {
+    tmp = a[i];
+    j = i - 1;
+    while (j >= left && a[j] > tmp) {
+      a[j + 1] = a[j];
+      --j;
     }
+    a[j + 1] = tmp;
   }
-
-  return sorted;
 }
 
 void left_merge(int *final, int *left, int *right, int lind, int rind) {
@@ -156,53 +149,43 @@ void right_merge(int *final, int *left, int *right, int lind,
   }
 }
 
-int * turn(void *context, int *a, int len) {
-  int half, left_index, right_index;
-  int *sorted_left;
-  int *sorted_right; 
-  int *sorted_final;
+void turn(void *context, int *a, int left, int right) {
+  int half, median, right_index;
   ctx_t *ctx;
 
   ctx = context;
 
-  half = len / 2;
-  left_index = half / 2;
+  half = (left + right) / 2;
+  median = (left + half) / 2;
 
-  if (len <= ctx->m) {
-    return sort(a, len);
+  if ((right - left) <= ctx->m) {
+    sort(a, left, right);
+    return;
   }
-
-  sorted_final = calloc(len, sizeof(int));
-  assert(sorted_final);
 
   #pragma omp parallel
   {
     #pragma omp single nowait
     {
       #pragma omp task
-      sorted_left = turn(ctx, a, half);
+      turn(ctx, a, left, half);
       #pragma omp task
-      sorted_right = turn(ctx, a + half, len - half);
+      turn(ctx, a, half, right);
     }
     #pragma omp single nowait
     {
       #pragma omp task
-      right_index = bin_search(sorted_right, sorted_left[left_index], len-half);
+      right_index = bin_search(a, a[median], half, right);
     }
-    #pragma omp single nowait
-    {
-      #pragma omp task
-      left_merge(sorted_final, sorted_left, sorted_right, left_index, right_index);
-      #pragma omp task
-      right_merge(sorted_final, sorted_left, sorted_right, left_index, 
-                  half-left_index, right_index, len-half-right_index);
-    }
+    // #pragma omp single nowait
+    // {
+    //   #pragma omp task
+    //   left_merge(sorted_final, sorted_left, sorted_right, left_index, right_index);
+    //   #pragma omp task
+    //   right_merge(sorted_final, sorted_left, sorted_right, left_index, 
+    //               half-left_index, right_index, len-half-right_index);
+    // }
   }
-
-  free(sorted_left);
-  free(sorted_right);
-
-  return sorted_final;
 }
 
 void work(void *context) {
@@ -210,7 +193,7 @@ void work(void *context) {
 
   ctx = context;
 
-  ctx->sorted = turn(ctx, ctx->data, ctx->n);
+  turn(ctx, ctx->sorted, 0, ctx->n);
 }
 
 int main(int argc, char **argv) {
