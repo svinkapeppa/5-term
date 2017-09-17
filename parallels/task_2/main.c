@@ -48,7 +48,7 @@ int bin_search(int *a, int key, int left, int right) {
    int mid;
 
    if (right - left <= 1) {
-    return left;
+    return right;
   } else {
     mid = (left + right) / 2;
 
@@ -74,83 +74,64 @@ void sort(int *a, int left, int right) {
   }
 }
 
-void left_merge(int *final, int *left, int *right, int lind, int rind) {
-  int i, j, k;
+/*
+  ! x and y - left and right bounds of the 'left' array
+  ! m and n - same for the 'right' array
+*/
+int * merge(int *a, int x, int y, int m, int n) {
+  int i, size;
+  int *tmp;
 
-  i = j = k = 0;
+  size = (m - n) + (y - x);
+  tmp = calloc(size, sizeof(int));
+
+  i = 0;
 
   while(1) {
-    if (left[i] < right[j]) {
-      final[k] = left[i];
-      ++i;
-    } else {
-      final[k] = right[j];
-      ++j;
-    }
-
-    ++k;
-
-    if (i == lind) {
-      while (j != rind) {
-        final[k] = right[j];
-        ++k;
-        ++j;
-        return;
-      }
-    }
-
-    if (j == rind) {
-      while (i != lind) {
-        final[k] = left[i];
-        ++k;
+    if (x == y) {
+      while (m != n) {
+        tmp[i] = a[m];
         ++i;
-        return;
+        ++m;
       }
+
+      return tmp;
     }
+
+    if (m == n) {
+      while (x != y) {
+        tmp[i] = a[x];
+        ++i;
+        ++x;
+      }
+
+      return tmp;
+    }
+
+    if (a[x] < a[m]) {
+      tmp[i] = a[x];
+      ++x;
+    } else {
+      tmp[i] = a[m];
+      ++m;
+    }
+
+    ++i;
   }
 }
 
-void right_merge(int *final, int *left, int *right, int lind,
-                 int lind2, int rind, int rind2) {
-  int i, j, k;
+void migrate(int *contestant, int *sorted, int left, int right) {
+  int i;
 
-  i = lind;
-  j = rind;
-  k = lind + rind - 1;
-
-  while(1) {
-    if (left[i] < right[j]) {
-      final[k] = left[i];
-      ++i;
-    } else {
-      final[k] = right[j];
-      ++j;
-    }
-
-    ++k;
-
-    if (i == lind2) {
-      while (j != rind2) {
-        final[k] = right[j];
-        ++k;
-        ++j;
-        return;
-      }
-    }
-
-    if (j == rind2) {
-      while (i != lind2) {
-        final[k] = left[i];
-        ++k;
-        ++i;
-        return;
-      }
-    }
+  for (i = left; i < right; ++i) {
+    contestant[i] = sorted[i - left];
   }
 }
 
 void turn(void *context, int *a, int left, int right) {
-  int half, median, right_index;
+  int half, median, right_index, size;
+  int *sortedleft;
+  int *sortedright;
   ctx_t *ctx;
 
   ctx = context;
@@ -177,15 +158,26 @@ void turn(void *context, int *a, int left, int right) {
       #pragma omp task
       right_index = bin_search(a, a[median], half, right);
     }
-    // #pragma omp single nowait
-    // {
-    //   #pragma omp task
-    //   left_merge(sorted_final, sorted_left, sorted_right, left_index, right_index);
-    //   #pragma omp task
-    //   right_merge(sorted_final, sorted_left, sorted_right, left_index, 
-    //               half-left_index, right_index, len-half-right_index);
-    // }
+    #pragma omp single nowait
+    {
+      #pragma omp task
+      sortedleft = merge(a, left, median, half, right_index);
+      #pragma omp task
+      sortedright = merge(a, median, half, right_index, right);
+      #pragma omp task
+      size = (right_index - half) + (median - left);
+    }
+    #pragma omp single nowait
+    {
+      #pragma omp task
+      migrate(a, sortedleft, left, left + size);
+      #pragma omp task
+      migrate(a, sortedright, left + size, right);
+    }
   }
+
+  free(sortedleft);
+  free(sortedright);
 }
 
 void work(void *context) {
