@@ -1,0 +1,12 @@
+12.09.17
+
+#pragma omp task
+#pragma omp single
+В конце параллельных секций есть неявный барьер. Можно выключить его с помощью директивы nowait.
+
+#pragma omp master
+
+#pragma omp taskwait
+
+#pragma omp sections
+  #pragma omp section
