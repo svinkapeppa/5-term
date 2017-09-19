@@ -179,11 +179,16 @@ void turn(void *context, int *a, int left, int right) {
 }
 
 void work(void *context) {
+  int i;
   ctx_t *ctx;
 
   ctx = context;
 
   turn(ctx, ctx->sorted, 0, ctx->n);
+
+  for (i = 0; i < ctx->n; ++i) {
+    printf("%d\n", ctx->sorted[i]);
+  }
 }
 
 int main(int argc, char **argv) {
