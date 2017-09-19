@@ -53,9 +53,9 @@ int bin_search(int *a, int key, int left, int right) {
     mid = (left + right) / 2;
 
     if (a[mid] < key) {
-      bin_search(a, key, mid, right);
+      return bin_search(a, key, mid, right);
     } else {
-      bin_search(a, key, left, mid);
+      return bin_search(a, key, left, mid);
     }
   }
 }
@@ -155,11 +155,7 @@ void turn(void *context, int *a, int left, int right) {
       #pragma omp task
       turn(ctx, a, half, right);
     }
-    #pragma omp single
-    {
-      #pragma omp task
-      right_index = bin_search(a, a[median], half, right);
-    }
+    right_index = bin_search(a, a[median], half, right);
     #pragma omp single
     {
       #pragma omp task
