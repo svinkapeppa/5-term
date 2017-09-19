@@ -82,8 +82,10 @@ int * merge(int *a, int x, int y, int m, int n) {
   int i, size;
   int *tmp;
 
-  size = (m - n) + (y - x);
+  size = (n - m) + (y - x);
+
   tmp = calloc(size, sizeof(int));
+  assert(tmp);
 
   i = 0;
 
@@ -146,19 +148,19 @@ void turn(void *context, int *a, int left, int right) {
 
   #pragma omp parallel
   {
-    #pragma omp single nowait
+    #pragma omp single
     {
       #pragma omp task
       turn(ctx, a, left, half);
       #pragma omp task
       turn(ctx, a, half, right);
     }
-    #pragma omp single nowait
+    #pragma omp single
     {
       #pragma omp task
       right_index = bin_search(a, a[median], half, right);
     }
-    #pragma omp single nowait
+    #pragma omp single
     {
       #pragma omp task
       sortedleft = merge(a, left, median, half, right_index);
@@ -167,7 +169,7 @@ void turn(void *context, int *a, int left, int right) {
       #pragma omp task
       size = (right_index - half) + (median - left);
     }
-    #pragma omp single nowait
+    #pragma omp single
     {
       #pragma omp task
       migrate(a, sortedleft, left, left + size);
