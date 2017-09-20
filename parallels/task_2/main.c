@@ -48,7 +48,11 @@ int bin_search(int *a, int key, int left, int right) {
    int mid;
 
    if (right - left <= 1) {
-    return right;
+    if (a[left] < key) {
+      return right;
+    } else {
+      return left;
+    }
   } else {
     mid = (left + right) / 2;
 
@@ -60,18 +64,8 @@ int bin_search(int *a, int key, int left, int right) {
   }
 }
 
-void sort(int *a, int left, int right) {
-  int i, j, tmp;
-
-  for (i = left + 1; i < right; ++i) {
-    tmp = a[i];
-    j = i - 1;
-    while (j >= left && a[j] > tmp) {
-      a[j + 1] = a[j];
-      --j;
-    }
-    a[j + 1] = tmp;
-  }
+int cmpfunc(const void *a, const void *b) {
+  return (*(int *)a - *(int *)b);
 }
 
 /*
@@ -131,9 +125,10 @@ void migrate(int *contestant, int *sorted, int left, int right) {
 }
 
 void turn(void *context, int *a, int left, int right) {
-  int half, median, right_index, size;
+  int i, half, median, right_index, size;
   int *sortedleft;
   int *sortedright;
+  int *buf;
   ctx_t *ctx;
 
   ctx = context;
@@ -142,7 +137,21 @@ void turn(void *context, int *a, int left, int right) {
   median = (left + half) / 2;
 
   if ((right - left) <= ctx->m) {
-    sort(a, left, right);
+    buf = calloc(right - left, sizeof(int));
+    assert(buf);
+
+    for (i = 0; i < right - left; ++i) {
+      buf[i] = a[i + left];
+    }
+
+    qsort(buf, right - left, sizeof(int), cmpfunc);
+
+    for (i = 0; i < right - left; ++i) {
+      a[i + left] = buf[i];
+    }
+
+    free(buf);
+
     return;
   }
 
@@ -185,10 +194,6 @@ void work(void *context) {
   ctx = context;
 
   turn(ctx, ctx->sorted, 0, ctx->n);
-
-  for (i = 0; i < ctx->n; ++i) {
-    printf("%d\n", ctx->sorted[i]);
-  }
 }
 
 int main(int argc, char **argv) {
