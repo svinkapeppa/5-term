@@ -12,7 +12,7 @@ typedef struct ctx_t {
   int P;
   int *data;
   int *sorted;
-  double work_time;
+  double worktime;
 } ctx_t;
 
 void ctor(void *context) {
@@ -33,15 +33,6 @@ void ctor(void *context) {
     ctx->data[i] = rand();
     ctx->sorted[i] = ctx->data[i];
   }
-}
-
-void dtor(void *context) {
-  ctx_t *ctx;
-
-  ctx = context;
-
-  free(ctx->data);
-  free(ctx->sorted);
 }
 
 int bin_search(int *a, int key, int left, int right) {
@@ -165,14 +156,13 @@ void turn(void *context, int *a, int left, int right) {
       turn(ctx, a, half, right);
     }
     right_index = bin_search(a, a[median], half, right);
+    size = (right_index - half) + (median - left);
     #pragma omp single
     {
       #pragma omp task
       sortedleft = merge(a, left, median, half, right_index);
       #pragma omp task
       sortedright = merge(a, median, half, right_index, right);
-      #pragma omp task
-      size = (right_index - half) + (median - left);
     }
     #pragma omp single
     {
@@ -187,13 +177,70 @@ void turn(void *context, int *a, int left, int right) {
   free(sortedright);
 }
 
-void work(void *context) {
+void statistics(void *context) {
   int i;
+  FILE *fd;
   ctx_t *ctx;
 
   ctx = context;
 
+  fd = fopen("stats.txt", "w+");
+
+  if (fd == NULL) {
+    fprintf(stderr, "FAILED TO PRINT STATISTICS\n");
+    exit(100500);
+  }
+
+  fprintf(fd, "%fs %d %d %d\n", ctx->worktime, ctx->n, ctx->m, ctx->P);
+
+  fclose(fd);
+
+  fd = fopen("data.txt", "w+");
+
+  if (fd == NULL) {
+    fprintf(stderr, "FAILED TO PRINT DATA\n");
+    exit(100500);
+  }
+
+  for (i = 0; i < ctx->n; ++i) {
+    fprintf(fd, "%d ", ctx->data[i]);
+  }
+
+  fprintf(fd, "\n");
+
+  for (i = 0; i < ctx->n; ++i) {
+    fprintf(fd, "%d ", ctx->sorted[i]);
+  }
+
+  fclose(fd);
+}
+
+void work(void *context) {
+  int i;
+  ctx_t *ctx;
+  struct timeval start, end;
+
+  ctx = context;
+
+  assert(gettimeofday(&start, NULL) == 0);
+
   turn(ctx, ctx->sorted, 0, ctx->n);
+
+  assert(gettimeofday(&end, NULL) == 0);
+
+  ctx->worktime = ((end.tv_sec - start.tv_sec) * 1000000u + \
+                    end.tv_usec - start.tv_usec) / 1.e6;
+}
+
+void dtor(void *context) {
+  ctx_t *ctx;
+
+  ctx = context;
+
+  statistics(ctx);
+
+  free(ctx->data);
+  free(ctx->sorted);
 }
 
 int main(int argc, char **argv) {

@@ -36,38 +36,40 @@ int cmpfunc(const void *a, const void *b) {
 
 void statistics(void *context) {
   int i;
-  FILE *fp;
+  FILE *fd;
   ctx_t *ctx;
 
   ctx = context;
 
-  fp = fopen("seqstats.txt", "w+");
+  fd = fopen("seqstats.txt", "w+");
 
-  if (fp == NULL) {
+  if (fd == NULL) {
     fprintf(stderr, "FAILED TO PRINT STATISTICS\n");
     exit(100500);
   }
 
-  fprintf(fp, "%fs %d\n", ctx->worktime, ctx->n);
+  fprintf(fd, "%fs %d\n", ctx->worktime, ctx->n);
 
-  fp = fopen("seqdata.txt", "w+");
+  fclose(fd);
 
-  if (fp == NULL) {
+  fd = fopen("seqdata.txt", "w+");
+
+  if (fd == NULL) {
     fprintf(stderr, "FAILED TO PRINT DATA\n");
     exit(100500);
   }
 
   for (i = 0; i < ctx->n; ++i) {
-    fprintf(fp, "%d ", ctx->data[i]);
+    fprintf(fd, "%d ", ctx->data[i]);
   }
 
-  fprintf(fp, "\n\n\n\n\n");
+  fprintf(fd, "\n");
 
   for (i = 0; i < ctx->n; ++i) {
-    fprintf(fp, "%d ", ctx->sorted[i]);
+    fprintf(fd, "%d ", ctx->sorted[i]);
   }
 
-  fclose(fp);
+  fclose(fd);
 }
 
 void run(void *context) {
