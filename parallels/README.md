@@ -7,3 +7,7 @@ task_1:
 task_2:
 
 &emsp; Read task.pdf in order to understand the task.
+
+task_3:
+
+&emsp; Read task.pdf in order to understand the task.
