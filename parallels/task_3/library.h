@@ -28,6 +28,7 @@ void statistics(void *context);
 void work(void *context);
 void sort(void *context);
 void *routine(void *args);
+int cmpfunc(const void *a, const void *b);
 
 /* ========== IMPLEMENTATIONS ========== */
 
@@ -46,7 +47,7 @@ void ctor(void *context) {
   srand(time(NULL));
 
   for (i = 0; i < ctx->n; ++i) {
-    ctx->data[i] = rand();
+    ctx->data[i] = rand() % 1000;
     ctx->sorted[i] = ctx->data[i];
   }
 }
@@ -140,11 +141,48 @@ void sort(void *context) {
 }
 
 void *routine(void *args_) {
+  int index, left, right, i;
+  int *buf;
   ctx_t *ctx;
   arguments *args;
-  
+
   args = args_;
 
   ctx = args->first;
-  printf("%d\n", args->second);  
+  index = args->second; 
+
+  left = ctx->m * index;
+  right = ctx->m * (index + 1);
+
+  if (right > ctx->n) {
+    right = ctx->n;
+  }
+
+  while(left < ctx->n) {
+    buf = calloc(right - left, sizeof(int));
+    assert(buf);
+
+    for (i = 0; i < right - left; ++i) {
+      buf[i] = ctx->sorted[i + left];
+    }
+
+    qsort(buf, right - left, sizeof(int), cmpfunc);
+
+    for (i = 0; i < right - left; ++i) {
+      ctx->sorted[i + left] = buf[i];
+    }
+
+    left += ctx->m * ctx->P;
+    right += ctx->m * ctx->P;
+
+    if (right > ctx->n) {
+      right = ctx->n;
+    }
+
+    free(buf);
+  }
+}
+
+int cmpfunc(const void *a, const void *b) {
+  return (*(int *)a - *(int *)b);
 }
