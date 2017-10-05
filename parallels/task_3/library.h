@@ -1,7 +1,8 @@
 #include <assert.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 
 /* ========== STRUCTURES ========== */
 
@@ -14,12 +15,19 @@ typedef struct ctx_t {
   double worktime;
 } ctx_t;
 
+typedef struct arguments {
+  ctx_t *first;
+  int second;
+} arguments;
+
 /* ========== PROTOTYPES ========== */
 
 void ctor(void *context);
 void dtor(void *context);
 void statistics(void *context);
 void work(void *context);
+void sort(void *context);
+void *routine(void *args);
 
 /* ========== IMPLEMENTATIONS ========== */
 
@@ -93,5 +101,50 @@ void dtor(void *context) {
 }
 
 void work(void *context) {
-  printf("Hello, world!\n");
+  ctx_t *ctx;
+  struct timeval start, end;
+
+  ctx = context;
+
+  assert(gettimeofday(&start, NULL) == 0);
+
+  sort(ctx);
+
+  assert(gettimeofday(&end, NULL) == 0);
+
+  ctx->worktime = ((end.tv_sec - start.tv_sec) * 1000000u + \
+                    end.tv_usec - start.tv_usec) / 1.e6;
+}
+
+void sort(void *context) {
+  int i;
+  ctx_t *ctx;
+
+  ctx = context;
+
+  pthread_t threads[ctx->P];
+  arguments args[ctx->P];
+
+  for (i = 0; i < ctx->P; ++i) {
+    args[i].first = ctx;
+    args[i].second = i;
+  }
+
+  for (i = 0; i < ctx->P; ++i) {
+    pthread_create(&threads[i], NULL, &routine, (void *)&args[i]);
+  }
+
+  for (i = 0; i < ctx->P; ++i) {
+    pthread_join(threads[i], NULL);
+  }
+}
+
+void *routine(void *args_) {
+  ctx_t *ctx;
+  arguments *args;
+  
+  args = args_;
+
+  ctx = args->first;
+  printf("%d\n", args->second);  
 }
