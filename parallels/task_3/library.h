@@ -27,8 +27,11 @@ void dtor(void *context);
 void statistics(void *context);
 void work(void *context);
 void sort(void *context);
-void *routine(void *args);
+void *routine_sort(void *args);
 int cmpfunc(const void *a, const void *b);
+int bin_search(int *a, int key, int left, int right);
+void merge(void *context);
+void routine_merge(int *a, int x, int y, int m, int n);
 
 /* ========== IMPLEMENTATIONS ========== */
 
@@ -110,6 +113,7 @@ void work(void *context) {
   assert(gettimeofday(&start, NULL) == 0);
 
   sort(ctx);
+  merge(ctx);
 
   assert(gettimeofday(&end, NULL) == 0);
 
@@ -132,7 +136,7 @@ void sort(void *context) {
   }
 
   for (i = 0; i < ctx->P; ++i) {
-    pthread_create(&threads[i], NULL, &routine, (void *)&args[i]);
+    pthread_create(&threads[i], NULL, &routine_sort, (void *)&args[i]);
   }
 
   for (i = 0; i < ctx->P; ++i) {
@@ -140,7 +144,7 @@ void sort(void *context) {
   }
 }
 
-void *routine(void *args_) {
+void *routine_sort(void *args_) {
   int index, left, right, i;
   int *buf;
   ctx_t *ctx;
@@ -186,3 +190,171 @@ void *routine(void *args_) {
 int cmpfunc(const void *a, const void *b) {
   return (*(int *)a - *(int *)b);
 }
+
+int bin_search(int *a, int key, int left, int right) {
+  int mid;
+
+  if (right - left <= 1) {
+    if (a[left] < key) {
+      return right;
+    } else {
+     return left;
+    }
+  } else {
+    mid = (left + right) / 2;
+
+    if (a[mid] < key) {
+      return bin_search(a, key, mid, right);
+    } else {
+      return bin_search(a, key, left, mid);
+    }
+  }
+}
+
+void merge(void *context) {
+  int num_chunks, i, right_index, diff, k;
+  int *left_edge;
+  int *right_edge;
+  int *lefts;
+  int *rights;
+  ctx_t *ctx;
+
+  diff = 0;
+
+  ctx = context;
+
+  pthread_t threads[ctx->P];
+  
+  if (ctx->n % ctx->m) {
+    num_chunks = ctx->n / ctx->m + 1;
+  } else {
+    num_chunks = ctx->n / ctx->m;
+  }
+
+  left_edge = calloc(num_chunks, sizeof(int));
+  assert(left_edge);
+
+  right_edge = calloc(num_chunks, sizeof(int));
+  assert(right_edge);
+
+  for (i = 0; i < num_chunks; ++i) {
+    left_edge[i] = ctx->m * i;
+    right_edge[i] = ctx->m * (i + 1);
+
+    if (right_edge[i] > ctx->n) {
+      right_edge[i] = ctx->n;
+    }
+  }
+
+  while (num_chunks > 1) {
+    if (num_chunks <= ctx->P) {
+      for (i = 0; i < num_chunks - 1; i += 2) {
+        median = (left_edge[i] + right_edge[i]) / 2;
+        right_index = bin_search(ctx->sorted, ctx->sorted[median], 
+                                 left_edge[i + 1], right_edge[i+1]);
+        pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
+        pthread_create(&threads[i + 1], NULL,
+                       &routine_merge, (void *)&args[i + 1]);
+        ++diff;
+      }
+
+      for (i = 0; i < num_chunks - 1; i += 2) {
+        pthread_join(threads[i], NULL);
+        pthread_join(threads[i + 1], NULL);
+      }
+
+      lefts = calloc(diff + 1, sizeof(int));
+      rights = calloc(diff + 1, sizeof(int));
+      
+      for (i = 0, k = 0; i < diff; ++i, k += 2) {
+        lefts[i] = left_edge[k];
+        rights[i] = right_edge[k + 1];
+      }
+      if (num_chunks % 2) {
+        lefts[diff] = left_edge[num_chunks - 1];
+        rights[diff] = right_edge[num_chunks - 1];
+      }
+
+      for (i = 0; i < diff + 1; ++i) {
+        left_edge[i] = lefts[i];
+        right_edge[i] = rights[i];
+      }
+
+      num_chunks -= diff;
+
+      free(lefts);
+      free(rights);
+    }
+  }
+
+  free(left_edge);
+  free(right_edge);
+}
+
+void *routine_merge(int *a, int x, int y, int m, int n) {
+  int i, size;
+  int *tmp;
+
+  size = (n - m) + (y - x);
+
+  tmp = calloc(size, sizeof(int));
+  assert(tmp);
+
+  for (i = 0; i < size; ++i) {
+    tmp[i] = a[i + x];
+  }
+
+  i = 0;
+
+  while(1) {
+    if (x == y) {
+      while (m != n) {
+        tmp[i] = a[m];
+        ++i;
+        ++m;
+      }
+
+      break;
+    }
+
+    if (m == n) {
+      while (x != y) {
+        tmp[i] = a[x];
+        ++i;
+        ++x;
+      }
+
+      break;
+    }
+
+    if (a[x] < a[m]) {
+      tmp[i] = a[x];
+      ++x;
+    } else {
+      tmp[i] = a[m];
+      ++m;
+    }
+
+    ++i;
+  }
+
+  for (i = 0; i < size; ++i) {
+    a[i + x] = tmp[i];
+  }
+
+  free(tmp);
+}
+
+//  1. proper args initialization
+
+
+
+
+
+
+
+
+
+
+
+
