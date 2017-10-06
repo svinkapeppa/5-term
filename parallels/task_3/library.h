@@ -22,10 +22,12 @@ typedef struct args_sort {
 
 typedef struct args_merge {
   int *a;
+  int *res;
   int x;
   int y;
   int m;
   int n;
+  int bound;
 } args_merge;
 
 /* ========== PROTOTYPES ========== */
@@ -40,6 +42,7 @@ int cmpfunc(const void *a, const void *b);
 int bin_search(int *a, int key, int left, int right);
 void merge(void *context);
 void *routine_merge(void *args);
+void *routine_migrate(void *args);
 
 /* ========== IMPLEMENTATIONS ========== */
 
@@ -227,8 +230,6 @@ void merge(void *context) {
   int *rights;
   ctx_t *ctx;
 
-  diff = 0;
-
   ctx = context;
 
   pthread_t threads[ctx->P];
@@ -256,26 +257,28 @@ void merge(void *context) {
 
   while (num_chunks > 1) {
     if (num_chunks <= ctx->P) {
+      printf("num_chunks = %d\n", num_chunks);
+      diff = 0;
+
       args_merge args[num_chunks];
 
       for (i = 0; i < num_chunks - 1; i += 2) {
         median = (left_edge[i] + right_edge[i]) / 2;
         right_index = bin_search(ctx->sorted, ctx->sorted[median], 
-                                    left_edge[i + 1], right_edge[i+1]);
-
-        // Need to pass duplicates to args[i].a
-        // This lead to migration
+                                 left_edge[i + 1], right_edge[i+1]);
 
         args[i].a = ctx->sorted;
         args[i].x = left_edge[i];
         args[i].y = median;
         args[i].m = left_edge[i + 1];
         args[i].n = right_index;
+        args[i].bound = left_edge[i];
         args[i + 1].a = ctx->sorted;
         args[i + 1].x = median;
         args[i + 1].y = right_edge[i];
         args[i + 1].m = right_index;
         args[i + 1].n = right_edge[i + 1];
+        args[i + 1].bound = median + right_index - left_edge[i + 1];
       }
 
       for (i = 0; i < num_chunks - 1; i += 2) {
@@ -288,6 +291,34 @@ void merge(void *context) {
       for (i = 0; i < num_chunks - 1; i += 2) {
         pthread_join(threads[i], NULL);
         pthread_join(threads[i + 1], NULL);
+      }
+
+      for (i = 0; i < num_chunks; ++i) {
+        int size = args[i].y - args[i].x + args[i].n - args[i].m;
+        for (int j = 0; j < size; ++j){
+          printf("%d ", args[i].res[j]);
+        }
+        printf("\n");
+      }
+
+      for (i = 0; i < num_chunks - 1; i += 2) {
+        pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
+        pthread_create(&threads[i + 1], NULL,
+                       &routine_migrate, (void *)&args[i + 1]);
+      }
+
+      for (i = 0; i < num_chunks - 1; i += 2) {
+        pthread_join(threads[i], NULL);
+        pthread_join(threads[i + 1], NULL);
+      }
+
+      for (i = 0; i < ctx->n; ++i) {
+        printf("%d ", ctx->sorted[i]);
+      }
+
+      for (i = 0; i < num_chunks - 1; i += 2) {
+        free(args[i].res);
+        free(args[i + 1].res);
       }
 
       lefts = calloc(diff + 1, sizeof(int));
@@ -308,6 +339,91 @@ void merge(void *context) {
       }
 
       num_chunks -= diff;
+
+      free(lefts);
+      free(rights);
+    } else {
+      diff = 0;
+
+      printf("num_chunks = %d\n", num_chunks);
+
+      args_merge args[ctx->P];
+
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        median = (left_edge[i] + right_edge[i]) / 2;
+        right_index = bin_search(ctx->sorted, ctx->sorted[median], 
+                                 left_edge[i + 1], right_edge[i+1]);
+
+        args[i].a = ctx->sorted;
+        args[i].x = left_edge[i];
+        args[i].y = median;
+        args[i].m = left_edge[i + 1];
+        args[i].n = right_index;
+        args[i].bound = left_edge[i];
+        args[i + 1].a = ctx->sorted;
+        args[i + 1].x = median;
+        args[i + 1].y = right_edge[i];
+        args[i + 1].m = right_index;
+        args[i + 1].n = right_edge[i + 1];
+        args[i + 1].bound = median + right_index - left_edge[i + 1];
+      }
+
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
+        pthread_create(&threads[i + 1], NULL,
+                       &routine_merge, (void *)&args[i + 1]);
+        ++diff;
+      }
+
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_join(threads[i], NULL);
+        pthread_join(threads[i + 1], NULL);
+      }
+
+      for (i = 0; i < ctx->P; ++i) {
+        int size = args[i].y - args[i].x + args[i].n - args[i].m;
+        for (int j = 0; j < size; ++j){
+          printf("%d ", args[i].res[j]);
+        }
+        printf("\n");
+      }
+
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
+        pthread_create(&threads[i + 1], NULL,
+                       &routine_migrate, (void *)&args[i + 1]);
+      }
+
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_join(threads[i], NULL);
+        pthread_join(threads[i + 1], NULL);
+      }
+
+      for (i = 0; i < ctx->n; ++i) {
+        printf("%d ", ctx->sorted[i]);
+      }
+
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        free(args[i].res);
+        free(args[i + 1].res);
+      }
+
+      lefts = calloc(diff, sizeof(int));
+      rights = calloc(diff, sizeof(int));
+      
+      for (i = 0, k = 0; i < diff; ++i, k += 2) {
+        lefts[i] = left_edge[k];
+        rights[i] = right_edge[k + 1];
+      }
+
+      for (i = 0; diff * 2 + i < num_chunks; ++i) {
+        left_edge[i + diff] = left_edge[diff * 2 + i];
+        right_edge[i + diff] = right_edge[diff * 2 + i];
+      }
+
+      num_chunks -= diff;
+
+      printf("num_chunks new = %d\n", num_chunks);
 
       free(lefts);
       free(rights);
@@ -336,14 +452,8 @@ void *routine_merge(void *args_) {
 
   size = (n - m) + (y - x);
 
-  printf("x = %d y = %d m = %d n = %d\n", x, y, m, n);
-
   tmp = calloc(size, sizeof(int));
   assert(tmp);
-
-  for (i = 0; i < size; ++i) {
-    tmp[i] = a[i + x];
-  }
 
   i = 0;
 
@@ -379,11 +489,27 @@ void *routine_merge(void *args_) {
     ++i;
   }
 
+  args->res = calloc(size, sizeof(int));
+
   for (i = 0; i < size; ++i) {
-    a[i + x] = tmp[i];
+    args->res[i] = tmp[i];
   }
 
   free(tmp);
+}
+
+void *routine_migrate(void *args_) {
+  int i, size;
+  args_merge *args;
+
+  args = args_;
+
+  size = args->y - args->x + args->n - args->m;
+
+  for (i = 0; i < size; ++i) {
+    args->a[args->bound + i] = args->res[i];
+    printf("%d %d\n", args->bound + i, args->res[i]);
+  }
 }
 
 
