@@ -329,98 +329,86 @@ void merge(void *context) {
       free(lefts);
       free(rights);
     } else {
-    //   diff = 0;
+      diff = 0;
 
-    //   printf("num_chunks = %d\n", num_chunks);
+      arg args[ctx->P];
 
-    //   args_merge args[ctx->P];
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        median = (left_edge[i] + right_edge[i]) / 2;
+        right_index = bin_search(ctx->sorted, ctx->sorted[median], 
+                                 left_edge[i + 1], right_edge[i+1]);
 
-    //   for (i = 0; i < ctx->P - 1; i += 2) {
-    //     median = (left_edge[i] + right_edge[i]) / 2;
-    //     right_index = bin_search(ctx->sorted, ctx->sorted[median], 
-    //                              left_edge[i + 1], right_edge[i+1]);
+        args[i].data = ctx->sorted;
+        args[i].x = left_edge[i];
+        args[i].y = median;
+        args[i].m = left_edge[i + 1];
+        args[i].n = right_index;
+        args[i].bound = left_edge[i];
 
-    //     args[i].a = ctx->sorted;
-    //     args[i].x = left_edge[i];
-    //     args[i].y = median;
-    //     args[i].m = left_edge[i + 1];
-    //     args[i].n = right_index;
-    //     args[i].bound = left_edge[i];
-    //     args[i + 1].a = ctx->sorted;
-    //     args[i + 1].x = median;
-    //     args[i + 1].y = right_edge[i];
-    //     args[i + 1].m = right_index;
-    //     args[i + 1].n = right_edge[i + 1];
-    //     args[i + 1].bound = median + right_index - left_edge[i + 1];
-    //   }
+        args[i + 1].data = ctx->sorted;
+        args[i + 1].x = median;
+        args[i + 1].y = right_edge[i];
+        args[i + 1].m = right_index;
+        args[i + 1].n = right_edge[i + 1];
+        args[i + 1].bound = median + right_index - left_edge[i + 1];
+      }
 
-    //   for (i = 0; i < ctx->P - 1; i += 2) {
-    //     pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
-    //     pthread_create(&threads[i + 1], NULL,
-    //                    &routine_merge, (void *)&args[i + 1]);
-    //     ++diff;
-    //   }
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
+        pthread_create(&threads[i + 1], NULL,
+                       &routine_merge, (void *)&args[i + 1]);
+        ++diff;
+      }
 
-    //   for (i = 0; i < ctx->P - 1; i += 2) {
-    //     pthread_join(threads[i], NULL);
-    //     pthread_join(threads[i + 1], NULL);
-    //   }
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_join(threads[i], NULL);
+        pthread_join(threads[i + 1], NULL);
+      }
 
-    //   for (i = 0; i < ctx->P; ++i) {
-    //     int size = args[i].y - args[i].x + args[i].n - args[i].m;
-    //     for (int j = 0; j < size; ++j){
-    //       printf("%d ", args[i].res[j]);
-    //     }
-    //     printf("\n");
-    //   }
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
+        pthread_create(&threads[i + 1], NULL,
+                       &routine_migrate, (void *)&args[i + 1]);
+      }
 
-    //   for (i = 0; i < ctx->P - 1; i += 2) {
-    //     pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
-    //     pthread_create(&threads[i + 1], NULL,
-    //                    &routine_migrate, (void *)&args[i + 1]);
-    //   }
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        pthread_join(threads[i], NULL);
+        pthread_join(threads[i + 1], NULL);
+      }
 
-    //   for (i = 0; i < ctx->P - 1; i += 2) {
-    //     pthread_join(threads[i], NULL);
-    //     pthread_join(threads[i + 1], NULL);
-    //   }
+      for (i = 0; i < ctx->P - 1; i += 2) {
+        free(args[i].sorted);
+        free(args[i + 1].sorted);
+      }
 
-    //   for (i = 0; i < ctx->n; ++i) {
-    //     printf("%d ", ctx->sorted[i]);
-    //   }
-
-    //   for (i = 0; i < ctx->P - 1; i += 2) {
-    //     free(args[i].res);
-    //     free(args[i + 1].res);
-    //   }
-
-    //   lefts = calloc(diff, sizeof(int));
-    //   rights = calloc(diff, sizeof(int));
+      lefts = calloc(diff, sizeof(int));
+      rights = calloc(diff, sizeof(int));
       
-    //   for (i = 0, k = 0; i < diff; ++i, k += 2) {
-    //     lefts[i] = left_edge[k];
-    //     rights[i] = right_edge[k + 1];
-    //   }
+      for (i = 0, k = 0; i < diff; ++i, k += 2) {
+        lefts[i] = left_edge[k];
+        rights[i] = right_edge[k + 1];
+      }
 
-    //   for (i = 0; diff * 2 + i < num_chunks; ++i) {
-    //     left_edge[i + diff] = left_edge[diff * 2 + i];
-    //     right_edge[i + diff] = right_edge[diff * 2 + i];
-    //   }
+      for (i = 0; i < diff; ++i) {
+        left_edge[i] = lefts[i];
+        right_edge[i] = rights[i];
+      }
 
-    //   num_chunks -= diff;
+      for (i = 0; diff * 2 + i < num_chunks; ++i) {
+        left_edge[i + diff] = left_edge[diff * 2 + i];
+        right_edge[i + diff] = right_edge[diff * 2 + i];
+      }
 
-    //   printf("num_chunks new = %d\n", num_chunks);
+      num_chunks -= diff;
 
-    //   free(lefts);
-    //   free(rights);
+      free(lefts);
+      free(rights);
     }
   }
 
   free(left_edge);
   free(right_edge);
 }
-
-// int *a, int x, int y, int m, int n
 
 void *routine_merge(void *args_) {
   int i, size, x, y, m, n;
