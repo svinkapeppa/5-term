@@ -40,6 +40,11 @@ int bin_search(int *a, int key, int left, int right);
 void merge(void *context);
 void *routine_merge(void *args);
 void *routine_migrate(void *args);
+void turnlow(void *context, int *num_chunks, int *left_edge,
+             int *right_edge, pthread_t *threads);
+void turnhigh(void *context, int *num_chunks, int *left_edge,
+              int *right_edge, pthread_t *threads);
+void turnone();
 
 /* ========== IMPLEMENTATIONS ========== */
 
@@ -253,161 +258,202 @@ void merge(void *context) {
   }
 
   while (num_chunks > 1) {
-    if (num_chunks <= ctx->P) {
-      diff = 0;
-
-      arg args[num_chunks];
-
-      for (i = 0; i < num_chunks - 1; i += 2) {
-        median = (left_edge[i] + right_edge[i]) / 2;
-        right_index = bin_search(ctx->sorted, ctx->sorted[median], 
-                                 left_edge[i + 1], right_edge[i+1]);
-
-        args[i].data = ctx->sorted;
-        args[i].x = left_edge[i];
-        args[i].y = median;
-        args[i].m = left_edge[i + 1];
-        args[i].n = right_index;
-        args[i].bound = left_edge[i];
-
-        args[i + 1].data = ctx->sorted;
-        args[i + 1].x = median;
-        args[i + 1].y = right_edge[i];
-        args[i + 1].m = right_index;
-        args[i + 1].n = right_edge[i + 1];
-        args[i + 1].bound = median + right_index - left_edge[i + 1];
-      }
-
-      for (i = 0; i < num_chunks - 1; i += 2) {
-        pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
-        pthread_create(&threads[i + 1], NULL,
-                       &routine_merge, (void *)&args[i + 1]);
-        ++diff;
-      }
-
-      for (i = 0; i < num_chunks - 1; i += 2) {
-        pthread_join(threads[i], NULL);
-        pthread_join(threads[i + 1], NULL);
-      }
-
-      for (i = 0; i < num_chunks - 1; i += 2) {
-        pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
-        pthread_create(&threads[i + 1], NULL,
-                       &routine_migrate, (void *)&args[i + 1]);
-      }
-
-      for (i = 0; i < num_chunks - 1; i += 2) {
-        pthread_join(threads[i], NULL);
-        pthread_join(threads[i + 1], NULL);
-      }
-
-      for (i = 0; i < num_chunks - 1; i += 2) {
-        free(args[i].sorted);
-        free(args[i + 1].sorted);
-      }
-
-      lefts = calloc(diff + 1, sizeof(int));
-      rights = calloc(diff + 1, sizeof(int));
-      
-      for (i = 0, k = 0; i < diff; ++i, k += 2) {
-        lefts[i] = left_edge[k];
-        rights[i] = right_edge[k + 1];
-      }
-
-      if (num_chunks % 2) {
-        lefts[diff] = left_edge[num_chunks - 1];
-        rights[diff] = right_edge[num_chunks - 1];
-      }
-
-      for (i = 0; i < diff + 1; ++i) {
-        left_edge[i] = lefts[i];
-        right_edge[i] = rights[i];
-      }
-
-      num_chunks -= diff;
-
-      free(lefts);
-      free(rights);
+    if (ctx->P == 1) {
+      turnone(ctx, &num_chunks, left_edge, right_edge);
+    } else if (num_chunks <= ctx->P) {
+      turnlow(ctx, &num_chunks, left_edge, right_edge, threads);
     } else {
-      diff = 0;
-
-      arg args[ctx->P];
-
-      for (i = 0; i < ctx->P - 1; i += 2) {
-        median = (left_edge[i] + right_edge[i]) / 2;
-        right_index = bin_search(ctx->sorted, ctx->sorted[median], 
-                                 left_edge[i + 1], right_edge[i+1]);
-
-        args[i].data = ctx->sorted;
-        args[i].x = left_edge[i];
-        args[i].y = median;
-        args[i].m = left_edge[i + 1];
-        args[i].n = right_index;
-        args[i].bound = left_edge[i];
-
-        args[i + 1].data = ctx->sorted;
-        args[i + 1].x = median;
-        args[i + 1].y = right_edge[i];
-        args[i + 1].m = right_index;
-        args[i + 1].n = right_edge[i + 1];
-        args[i + 1].bound = median + right_index - left_edge[i + 1];
-      }
-
-      for (i = 0; i < ctx->P - 1; i += 2) {
-        pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
-        pthread_create(&threads[i + 1], NULL,
-                       &routine_merge, (void *)&args[i + 1]);
-        ++diff;
-      }
-
-      for (i = 0; i < ctx->P - 1; i += 2) {
-        pthread_join(threads[i], NULL);
-        pthread_join(threads[i + 1], NULL);
-      }
-
-      for (i = 0; i < ctx->P - 1; i += 2) {
-        pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
-        pthread_create(&threads[i + 1], NULL,
-                       &routine_migrate, (void *)&args[i + 1]);
-      }
-
-      for (i = 0; i < ctx->P - 1; i += 2) {
-        pthread_join(threads[i], NULL);
-        pthread_join(threads[i + 1], NULL);
-      }
-
-      for (i = 0; i < ctx->P - 1; i += 2) {
-        free(args[i].sorted);
-        free(args[i + 1].sorted);
-      }
-
-      lefts = calloc(diff, sizeof(int));
-      rights = calloc(diff, sizeof(int));
-      
-      for (i = 0, k = 0; i < diff; ++i, k += 2) {
-        lefts[i] = left_edge[k];
-        rights[i] = right_edge[k + 1];
-      }
-
-      for (i = 0; i < diff; ++i) {
-        left_edge[i] = lefts[i];
-        right_edge[i] = rights[i];
-      }
-
-      for (i = 0; diff * 2 + i < num_chunks; ++i) {
-        left_edge[i + diff] = left_edge[diff * 2 + i];
-        right_edge[i + diff] = right_edge[diff * 2 + i];
-      }
-
-      num_chunks -= diff;
-
-      free(lefts);
-      free(rights);
+      turnhigh(ctx, &num_chunks, left_edge, right_edge, threads);
     }
   }
+}
 
-  free(left_edge);
-  free(right_edge);
+void turnlow(void *context, int *num_chunks, int *left_edge,
+             int *right_edge, pthread_t *threads) {
+  int diff, chunks, i, median, right_index, k;
+  int *lefts;
+  int *rights;
+  ctx_t *ctx;
+
+  ctx = context;
+  diff = 0;
+  chunks = *num_chunks;
+
+  arg args[chunks];
+
+  for (i = 0; i < chunks - 1; i += 2) {
+    median = (left_edge[i] + right_edge[i]) / 2;
+    right_index = bin_search(ctx->sorted, ctx->sorted[median], 
+                             left_edge[i + 1], right_edge[i+1]);
+
+    args[i].data = ctx->sorted;
+    args[i].x = left_edge[i];
+    args[i].y = median;
+    args[i].m = left_edge[i + 1];
+    args[i].n = right_index;
+    args[i].bound = left_edge[i];
+
+    args[i + 1].data = ctx->sorted;
+    args[i + 1].x = median;
+    args[i + 1].y = right_edge[i];
+    args[i + 1].m = right_index;
+    args[i + 1].n = right_edge[i + 1];
+    args[i + 1].bound = median + right_index - left_edge[i + 1];
+  }
+
+  for (i = 0; i < chunks - 1; i += 2) {
+    pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
+    pthread_create(&threads[i + 1], NULL,
+                   &routine_merge, (void *)&args[i + 1]);
+    ++diff;
+  }
+
+  for (i = 0; i < chunks - 1; i += 2) {
+    pthread_join(threads[i], NULL);
+    pthread_join(threads[i + 1], NULL);
+  }
+
+  for (i = 0; i < chunks - 1; i += 2) {
+    pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
+    pthread_create(&threads[i + 1], NULL,
+                   &routine_migrate, (void *)&args[i + 1]);
+  }
+
+  for (i = 0; i < chunks - 1; i += 2) {
+    pthread_join(threads[i], NULL);
+    pthread_join(threads[i + 1], NULL);
+  }
+
+  for (i = 0; i < chunks - 1; i += 2) {
+    free(args[i].sorted);
+    free(args[i + 1].sorted);
+  }
+
+  lefts = calloc(diff + 1, sizeof(int));
+  rights = calloc(diff + 1, sizeof(int));
+  
+  for (i = 0, k = 0; i < diff; ++i, k += 2) {
+    lefts[i] = left_edge[k];
+    rights[i] = right_edge[k + 1];
+  }
+
+  if (chunks % 2) {
+    lefts[diff] = left_edge[chunks - 1];
+    rights[diff] = right_edge[chunks - 1];
+  }
+
+  for (i = 0; i < diff + 1; ++i) {
+    left_edge[i] = lefts[i];
+    right_edge[i] = rights[i];
+  }
+
+  chunks -= diff;
+  *num_chunks = chunks;
+
+  free(lefts);
+  free(rights);
+}
+
+void turnhigh(void *context, int *num_chunks, int *left_edge,
+              int *right_edge, pthread_t *threads) {
+  int diff, chunks, i, median, right_index, k;
+  int *lefts;
+  int *rights;
+  ctx_t *ctx;
+
+  ctx = context;
+  diff = 0;
+  chunks = *num_chunks;
+
+  arg args[ctx->P];
+
+  for (i = 0; i < ctx->P - 1; i += 2) {
+    median = (left_edge[i] + right_edge[i]) / 2;
+    right_index = bin_search(ctx->sorted, ctx->sorted[median], 
+                             left_edge[i + 1], right_edge[i+1]);
+
+    args[i].data = ctx->sorted;
+    args[i].x = left_edge[i];
+    args[i].y = median;
+    args[i].m = left_edge[i + 1];
+    args[i].n = right_index;
+    args[i].bound = left_edge[i];
+
+    args[i + 1].data = ctx->sorted;
+    args[i + 1].x = median;
+    args[i + 1].y = right_edge[i];
+    args[i + 1].m = right_index;
+    args[i + 1].n = right_edge[i + 1];
+    args[i + 1].bound = median + right_index - left_edge[i + 1];
+  }
+
+  for (i = 0; i < ctx->P - 1; i += 2) {
+    pthread_create(&threads[i], NULL, &routine_merge, (void *)&args[i]);
+    pthread_create(&threads[i + 1], NULL,
+                   &routine_merge, (void *)&args[i + 1]);
+    ++diff;
+  }
+
+  for (i = 0; i < ctx->P - 1; i += 2) {
+    pthread_join(threads[i], NULL);
+    pthread_join(threads[i + 1], NULL);
+  }
+
+  for (i = 0; i < ctx->P - 1; i += 2) {
+    pthread_create(&threads[i], NULL, &routine_migrate, (void *)&args[i]);
+    pthread_create(&threads[i + 1], NULL,
+                   &routine_migrate, (void *)&args[i + 1]);
+  }
+
+  for (i = 0; i < ctx->P - 1; i += 2) {
+    pthread_join(threads[i], NULL);
+    pthread_join(threads[i + 1], NULL);
+  }
+
+  for (i = 0; i < ctx->P - 1; i += 2) {
+    free(args[i].sorted);
+    free(args[i + 1].sorted);
+  }
+
+  lefts = calloc(diff, sizeof(int));
+  rights = calloc(diff, sizeof(int));
+  
+  for (i = 0, k = 0; i < diff; ++i, k += 2) {
+    lefts[i] = left_edge[k];
+    rights[i] = right_edge[k + 1];
+  }
+
+  for (i = 0; i < diff; ++i) {
+    left_edge[i] = lefts[i];
+    right_edge[i] = rights[i];
+  }
+
+  for (i = 0; diff * 2 + i < chunks; ++i) {
+    left_edge[i + diff] = left_edge[diff * 2 + i];
+    right_edge[i + diff] = right_edge[diff * 2 + i];
+  }
+
+  chunks -= diff;
+  *num_chunks = chunks;
+
+  free(lefts);
+  free(rights);
+}
+
+void turnone(void *context, int *num_chunks, int *left_edge,
+             int *right_edge) {
+  int diff, chunks, i, median, right_index, k;
+  int *lefts;
+  int *rights;
+  ctx_t *ctx;
+
+  ctx = context;
+  diff = 0;
+  chunks = *num_chunks;
+  
+  /*
+    CODE TO DO THE TASK FOR ONE THREAD
+  */
 }
 
 void *routine_merge(void *args_) {
@@ -482,15 +528,3 @@ void *routine_migrate(void *args_) {
     args->data[args->bound + i] = args->sorted[i];
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
