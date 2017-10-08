@@ -44,7 +44,8 @@ void turnlow(void *context, int *num_chunks, int *left_edge,
              int *right_edge, pthread_t *threads);
 void turnhigh(void *context, int *num_chunks, int *left_edge,
               int *right_edge, pthread_t *threads);
-void turnone();
+void turnone(void *context, int *num_chunks, int *left_edge,
+             int *right_edge);
 
 /* ========== IMPLEMENTATIONS ========== */
 
@@ -63,7 +64,7 @@ void ctor(void *context) {
   srand(time(NULL));
 
   for (i = 0; i < ctx->n; ++i) {
-    ctx->data[i] = rand() % 1000;
+    ctx->data[i] = rand();
     ctx->sorted[i] = ctx->data[i];
   }
 }
@@ -442,18 +443,63 @@ void turnhigh(void *context, int *num_chunks, int *left_edge,
 
 void turnone(void *context, int *num_chunks, int *left_edge,
              int *right_edge) {
-  int diff, chunks, i, median, right_index, k;
-  int *lefts;
-  int *rights;
+  int chunks, median, right_index, i;
   ctx_t *ctx;
+  pthread_t thread;
 
   ctx = context;
-  diff = 0;
   chunks = *num_chunks;
   
-  /*
-    CODE TO DO THE TASK FOR ONE THREAD
-  */
+  median = (left_edge[0] + right_edge[0]) / 2;
+  right_index = bin_search(ctx->sorted, ctx->sorted[median], 
+                           left_edge[1], right_edge[1]);
+
+  arg argleft = {
+    .data = ctx->sorted,
+    .x = left_edge[0], 
+    .y = median,
+    .m = left_edge[1],
+    .n = right_index,
+    .bound = left_edge[0]
+  };
+
+  arg argright = {
+    .data = ctx->sorted,
+    .x = median,
+    .y = right_edge[0],
+    .m = right_index,
+    .n = right_edge[1],
+    .bound = median + right_index - left_edge[1]
+  };
+
+  pthread_create(&thread, NULL, &routine_merge, (void *)&argleft);
+
+  pthread_join(thread, NULL);
+
+  pthread_create(&thread, NULL, &routine_merge, (void *)&argright);
+
+  pthread_join(thread, NULL);
+
+  pthread_create(&thread, NULL, &routine_migrate, (void *)&argleft);
+
+  pthread_join(thread, NULL);
+
+  pthread_create(&thread, NULL, &routine_migrate, (void *)&argright);
+
+  pthread_join(thread, NULL);
+
+  free(argleft.sorted);
+  free(argright.sorted);
+
+  right_edge[0] = right_edge[1];
+
+  for (i = 0; 2 + i < chunks; ++i) {
+    left_edge[i + 1] = left_edge[2 + i];
+    right_edge[i + 1] = right_edge[2 + i];
+  }
+
+  chunks -= 1;
+  *num_chunks = chunks;
 }
 
 void *routine_merge(void *args_) {
