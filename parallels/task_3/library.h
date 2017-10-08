@@ -267,6 +267,9 @@ void merge(void *context) {
       turnhigh(ctx, &num_chunks, left_edge, right_edge, threads);
     }
   }
+
+  free(left_edge);
+  free(right_edge);
 }
 
 void turnlow(void *context, int *num_chunks, int *left_edge,
