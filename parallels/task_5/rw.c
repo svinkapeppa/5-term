@@ -146,13 +146,9 @@ void walk(void *context, int rank, int size, int index, walker_t *working,
     case UP:
       working[index].y++;
       if (working[index].y % ctx->l == 0) {
-        // 1. Delete from working
-        // 2. Decrease workingnumber
-        // 3. Add to up
-        // 4. Increase upnumber
         walker_t *upbuf = calloc(*upnumber, sizeof(walker_t));
-        assert(upnumber);
-        for (int i = 0; i < *upnumber - 1; ++i) {
+        assert(upbuf);
+        for (int i = 0; i < *upnumber; ++i) {
           upbuf[i] = up[i];
         }
 
@@ -183,12 +179,105 @@ void walk(void *context, int rank, int size, int index, walker_t *working,
       break;
     case DOWN:
       working[index].y--;
+      if (working[index].y % ctx->l == 0) {
+        walker_t *downbuf = calloc(*downnumber, sizeof(walker_t));
+        assert(downbuf);
+        for (int i = 0; i < *downnumber; ++i) {
+          downbuf[i] = down[i];
+        }
+
+        (*downnumber)++;
+        down = calloc(*downnumber, sizeof(walker_t));
+        for (int i = 0; i < *downnumber - 1; ++i) {
+          down[i] = downbuf[i];
+        }
+        down[*downnumber - 1] = working[index];
+
+        walker_t *buf = calloc(*workingnumber - 1, sizeof(walker_t));
+        assert(buf);
+        for (int i = 0; i < index; ++i) {
+          buf[i] = working[i];
+        }
+        for (int i = index + 1; i < *workingnumber; ++i) {
+          buf[i - 1] = working[i];
+        }
+        (*workingnumber)--;
+        working = realloc(working, *workingnumber * sizeof(walker_t));
+        for (int i = 0; i < *workingnumber; ++i) {
+          working[i] = buf[i];
+        }
+
+        free(downbuf);
+        free(buf);
+      }
       break;
     case LEFT:
       working[index].x--;
+      if (working[index].x % ctx->l == 0) {
+        walker_t *leftbuf = calloc(*leftnumber, sizeof(walker_t));
+        assert(leftbuf);
+        for (int i = 0; i < *leftnumber; ++i) {
+          leftbuf[i] = left[i];
+        }
+
+        (*leftnumber)++;
+        left = calloc(*leftnumber, sizeof(walker_t));
+        for (int i = 0; i < *leftnumber - 1; ++i) {
+          left[i] = leftbuf[i];
+        }
+        left[*leftnumber - 1] = working[index];
+
+        walker_t *buf = calloc(*workingnumber - 1, sizeof(walker_t));
+        assert(buf);
+        for (int i = 0; i < index; ++i) {
+          buf[i] = working[i];
+        }
+        for (int i = index + 1; i < *workingnumber; ++i) {
+          buf[i - 1] = working[i];
+        }
+        (*workingnumber)--;
+        working = realloc(working, *workingnumber * sizeof(walker_t));
+        for (int i = 0; i < *workingnumber; ++i) {
+          working[i] = buf[i];
+        }
+
+        free(leftbuf);
+        free(buf);
+      }
       break;
     case RIGHT:
       working[index].x++;
+      if (working[index].x % ctx->l == 0) {
+        walker_t *rightbuf = calloc(*rightnumber, sizeof(walker_t));
+        assert(rightbuf);
+        for (int i = 0; i < *rightnumber; ++i) {
+          rightbuf[i] = right[i];
+        }
+
+        (*rightnumber)++;
+        right = calloc(*rightnumber, sizeof(walker_t));
+        for (int i = 0; i < *rightnumber - 1; ++i) {
+          right[i] = rightbuf[i];
+        }
+        right[*rightnumber - 1] = working[index];
+
+        walker_t *buf = calloc(*workingnumber - 1, sizeof(walker_t));
+        assert(buf);
+        for (int i = 0; i < index; ++i) {
+          buf[i] = working[i];
+        }
+        for (int i = index + 1; i < *workingnumber; ++i) {
+          buf[i - 1] = working[i];
+        }
+        (*workingnumber)--;
+        working = realloc(working, *workingnumber * sizeof(walker_t));
+        for (int i = 0; i < *workingnumber; ++i) {
+          working[i] = buf[i];
+        }
+
+        free(rightbuf);
+        free(buf);
+      }
       break;
     default:
       fprintf(stderr, "WRONG DIRECTION! ABORT!\n");
