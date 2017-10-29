@@ -8,10 +8,13 @@
 #define DOWN 2
 #define LEFT 4
 #define RIGHT 6
+#define FORWARD 0
+#define BACKWARD 1
 
 typedef struct walker_t {
   int x;
   int y;
+  int status;
 } walker_t;
 
 typedef struct ctx_t {
@@ -33,6 +36,8 @@ void walk(void *context, int rank, int size, int index, walker_t *working,
           int *workingnumber, walker_t *up, int *upnumber, walker_t *down, int *downnumber,
           walker_t *left, int *leftnumber, walker_t *right, int *rightnumber);
 void init(void *context, int rank, int size, walker_t *incoming);
+void communicate(void *context, int rank, int size, walker_t *up, int *upnumber,
+                 int direction);
 
 int main(int argc, char **argv)
 {
@@ -115,24 +120,75 @@ void experiment(void *context, int rank, int size)
 
   init(context, rank, size, working);
 
-  for (int i = 0; i < ctx->n; ++i) {
+  for (int i = 0; i < 1; ++i) {
+    int temp = 0;
+    int k = 0;
     for (int j = 0; j < *workingnumber; ++j) {
       walk(ctx, rank, size, j, working, workingnumber,
            up, upnumber, down, downnumber,
            left, leftnumber, right, rightnumber);
+      if (working[j].status == 1) {
+        temp++;
+      }
+    }
+    walker_t *buf = calloc(*workingnumber - temp, sizeof(walker_t));
+    assert(buf);
+    for (int j = 0; j < *workingnumber; ++j) {
+      if (working[j].status == 0) {
+        buf[k] = working[j];
+        k++;
+      } else {
+        working[j].status = 0;
+      }
+    }
+    working = calloc(*workingnumber - temp, sizeof(walker_t));
+    assert(working);
+    for (int j = 0; j < (*workingnumber - temp); ++j) {
+      working[j] = buf[j];
+    }
+    if (buf) {
+      free(buf);
+    }
+    if (rank % 2 == 0) {
+      // Create function to do this
+      communicate(context, rank, size, up, upnumber, FORWARD);
+      // Need to do 3 more sends and 4 recieves
+    } else {
+      communicate(context, rank, size, up, upnumber, BACKWARD);
+      // Backwards
     }
   }
 
-  free(working);
-  free(up);
-  free(down);
-  free(left);
-  free(right);
-  free(upnumber);
-  free(downnumber);
-  free(leftnumber);
-  free(rightnumber);
-  free(workingnumber);
+  if (working) {
+    free(working);
+  }
+  if (up) {
+    free(up);
+  }
+  if (down) {
+    free(down);
+  }
+  if (left) {
+    free(left);
+  }
+  if (right) {
+    free(right); 
+  }
+  if (upnumber) {
+    free(upnumber);
+  }
+  if (downnumber) {
+    free(downnumber);
+  }
+  if (leftnumber) {
+    free(leftnumber);
+  }
+  if (rightnumber) {
+    free(rightnumber); 
+  }
+  if (workingnumber) {
+    free(workingnumber);
+  }
 }
 
 void walk(void *context, int rank, int size, int index, walker_t *working, 
@@ -159,22 +215,10 @@ void walk(void *context, int rank, int size, int index, walker_t *working,
         }
         up[*upnumber - 1] = working[index];
 
-        walker_t *buf = calloc(*workingnumber - 1, sizeof(walker_t));
-        assert(buf);
-        for (int i = 0; i < index; ++i) {
-          buf[i] = working[i];
+        working[index].status = 1;
+        if (upbuf) {
+          free(upbuf); 
         }
-        for (int i = index + 1; i < *workingnumber; ++i) {
-          buf[i - 1] = working[i];
-        }
-        (*workingnumber)--;
-        working = realloc(working, *workingnumber * sizeof(walker_t));
-        for (int i = 0; i < *workingnumber; ++i) {
-          working[i] = buf[i];
-        }
-
-        free(upbuf);
-        free(buf);
       }
       break;
     case DOWN:
@@ -193,22 +237,10 @@ void walk(void *context, int rank, int size, int index, walker_t *working,
         }
         down[*downnumber - 1] = working[index];
 
-        walker_t *buf = calloc(*workingnumber - 1, sizeof(walker_t));
-        assert(buf);
-        for (int i = 0; i < index; ++i) {
-          buf[i] = working[i];
+        working[index].status = 1;
+        if (downbuf) {
+          free(downbuf);
         }
-        for (int i = index + 1; i < *workingnumber; ++i) {
-          buf[i - 1] = working[i];
-        }
-        (*workingnumber)--;
-        working = realloc(working, *workingnumber * sizeof(walker_t));
-        for (int i = 0; i < *workingnumber; ++i) {
-          working[i] = buf[i];
-        }
-
-        free(downbuf);
-        free(buf);
       }
       break;
     case LEFT:
@@ -227,22 +259,10 @@ void walk(void *context, int rank, int size, int index, walker_t *working,
         }
         left[*leftnumber - 1] = working[index];
 
-        walker_t *buf = calloc(*workingnumber - 1, sizeof(walker_t));
-        assert(buf);
-        for (int i = 0; i < index; ++i) {
-          buf[i] = working[i];
+        working[index].status = 1;
+        if (leftbuf) {
+          free(leftbuf);
         }
-        for (int i = index + 1; i < *workingnumber; ++i) {
-          buf[i - 1] = working[i];
-        }
-        (*workingnumber)--;
-        working = realloc(working, *workingnumber * sizeof(walker_t));
-        for (int i = 0; i < *workingnumber; ++i) {
-          working[i] = buf[i];
-        }
-
-        free(leftbuf);
-        free(buf);
       }
       break;
     case RIGHT:
@@ -261,22 +281,10 @@ void walk(void *context, int rank, int size, int index, walker_t *working,
         }
         right[*rightnumber - 1] = working[index];
 
-        walker_t *buf = calloc(*workingnumber - 1, sizeof(walker_t));
-        assert(buf);
-        for (int i = 0; i < index; ++i) {
-          buf[i] = working[i];
+        working[index].status = 1;
+        if (rightbuf) {
+          free(rightbuf);
         }
-        for (int i = index + 1; i < *workingnumber; ++i) {
-          buf[i - 1] = working[i];
-        }
-        (*workingnumber)--;
-        working = realloc(working, *workingnumber * sizeof(walker_t));
-        for (int i = 0; i < *workingnumber; ++i) {
-          working[i] = buf[i];
-        }
-
-        free(rightbuf);
-        free(buf);
       }
       break;
     default:
@@ -298,6 +306,44 @@ void init(void *context, int rank, int size, walker_t *working)
   for (int i = 0; i < ctx->N; ++i) {
     walker.x = row * ctx->l + rand() % ctx->l;
     walker.y = column * ctx->l + rand() % ctx->l;
+    walker.status = 0;
     working[i] = walker;
   }  
+}
+
+void communicate(void *context, int rank, int size, walker_t *up, int *upnumber,
+                 int direction)
+{
+  ctx_t *ctx = context;
+  MPI_Status status;
+  int length;
+  int node;
+  walker_t *uprecv;
+  switch(direction)
+  {
+    case FORWARD:
+      node = (rank + ctx->a) % (ctx->a * ctx->b);
+      MPI_Send((void *)up, *upnumber * sizeof(walker_t), MPI_BYTE,
+               node, 0, MPI_COMM_WORLD);
+      MPI_Probe(node, 0, MPI_COMM_WORLD, &status);
+      MPI_Get_count(&status, MPI_BYTE, &length);
+      uprecv = calloc(length / sizeof(walker_t), sizeof(walker_t));
+      assert(uprecv);
+      MPI_Recv((void *)uprecv, length, MPI_BYTE, node,
+               0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      break;
+    case BACKWARD:
+      node = (rank + ctx->a) % (ctx->a * ctx->b);
+      MPI_Probe(node, 0, MPI_COMM_WORLD, &status);
+      MPI_Get_count(&status, MPI_BYTE, &length);
+      uprecv = calloc(length / sizeof(walker_t), sizeof(walker_t));
+      assert(uprecv);
+      MPI_Recv((void *)uprecv, length, MPI_BYTE, node,
+               0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Send((void *)up, *upnumber * sizeof(walker_t), MPI_BYTE,
+               node, 0, MPI_COMM_WORLD);
+      break;
+    default:
+      fprintf(stderr, "WRONG COMMUNICATION SEQUENCE\n");
+  } 
 }
