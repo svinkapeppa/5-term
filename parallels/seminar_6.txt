@@ -1,0 +1,13 @@
+07.11.17
+Семинар 6
+
+1. Wordcount
+  // Task
+  <text> -> <(word, count)>
+
+  // Plan
+  article -> <words> -> |MAP| -> <(words, 1)-> |sort|
+  -> <(words, <1,...,1>)> -> |REDUCE| -> <(words, count)>
+
+2. Wordcount unicode
+  regex101.com - cool site to check you regular expressions
