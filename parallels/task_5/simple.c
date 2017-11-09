@@ -4,6 +4,8 @@
 #include <stdlib.h>
 
 #define MASTER 0
+#define FACTOR 2
+#define PERIOD 1000
 
 typedef struct ctx_t {
   int l;
@@ -28,6 +30,8 @@ typedef struct point_t {
 void stats(void *context);
 void experiment(void *context);
 int getseed(int rank, int size);
+void push(point_t **array, int *capacity, int *size, point_t *element);
+void pop(point_t **array, int *size, int *index);
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
@@ -83,18 +87,35 @@ void experiment(void *context) {
 
   srand(seed);
 
+  int pointssize = ctx->N;
   point_t *points = calloc(ctx->N, sizeof(point_t));
-  int *pointsnumber = calloc(1, sizeof(int));
   assert(points);
-  assert(pointsnumber);
-  *pointsnumber = ctx->N;
   for (int i = 0; i < ctx->N; ++i) {
     points[i].x = rand() % ctx->l;
     points[i].y = rand() % ctx->l;
-    points[i].iteration = ctx->n;
+    points[i].iteration = 0;
   }
 
-  free(pointsnumber);
+  int completedcapacity = ctx->N;
+  point_t *completed = calloc(ctx->N, sizeof(point_t));
+  assert(completed);
+
+  while (1) {
+    int index = 0;
+    while (index < pointssize) {
+      int flag = 1;
+      point_t *point = points + index;
+      for (int i = 0; i < PERIOD; ++i) {
+        if (point->iteration == ctx->n) {
+          push(&completed, &completedcapacity, &index, point);
+          pop(&points, &pointssize, &index);
+          flag = 0;
+          break;
+        }
+      }
+    }
+  }
+
   free(points);
 }
 
@@ -118,4 +139,21 @@ int getseed(int rank, int size) {
   }
   
   return seed;
+}
+
+void push(point_t **array, int *capacity, int *size, point_t *element) {
+  if (*size < *capacity) {
+    (*array)[*size] = *element;
+    ++(*size);
+  } else {
+    *array = realloc(*array, *capacity * FACTOR * sizeof(point_t));
+    *capacity *= FACTOR;
+    (*array)[*size] = *element;
+    ++(*size);
+  }
+}
+
+void pop(point_t **array, int *size, int *index) {
+  (*array)[*index] = (*array)[*size - 1];
+  --(*size);
 }
