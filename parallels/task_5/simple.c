@@ -5,7 +5,13 @@
 
 #define MASTER 0
 #define FACTOR 2
-#define PERIOD 1000
+#define PERIOD 50
+
+#define UP 200
+#define DOWN 201
+#define LEFT 202
+#define RIGHT 203
+
 
 typedef struct ctx_t {
   int l;
@@ -32,6 +38,7 @@ void experiment(void *context);
 int getseed(int rank, int size);
 void push(point_t **array, int *capacity, int *size, point_t *element);
 void pop(point_t **array, int *size, int *index);
+int getdirection(void *context);
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
@@ -96,9 +103,30 @@ void experiment(void *context) {
     points[i].iteration = 0;
   }
 
+  int completedsize = 0;
   int completedcapacity = ctx->N;
   point_t *completed = calloc(ctx->N, sizeof(point_t));
   assert(completed);
+
+  int sendupsize = 0;
+  int sendupcapacity = ctx->N;
+  point_t *sendup = calloc(ctx->N, sizeof(point_t));
+  assert(sendup);
+
+  int senddownsize = 0;
+  int senddowncapacity = ctx->N;
+  point_t *senddown = calloc(ctx->N, sizeof(point_t));
+  assert(senddown);
+
+  int sendleftsize = 0;
+  int sendleftcapacity = ctx->N;
+  point_t *sendleft = calloc(ctx->N, sizeof(point_t));
+  assert(sendleft);
+
+  int sendrightsize = 0;
+  int sendrightcapacity = ctx->N;
+  point_t *sendright = calloc(ctx->N, sizeof(point_t));
+  assert(sendright);
 
   while (1) {
     int index = 0;
@@ -107,16 +135,77 @@ void experiment(void *context) {
       point_t *point = points + index;
       for (int i = 0; i < PERIOD; ++i) {
         if (point->iteration == ctx->n) {
-          push(&completed, &completedcapacity, &index, point);
+          push(&completed, &completedcapacity, &completedsize, point);
           pop(&points, &pointssize, &index);
           flag = 0;
           break;
+        } else {
+          ++point->iteration;
+          int direction = getdirection(ctx);
+          if (direction == UP) {
+            ++point->y;
+            if (point->y == ctx->l) {
+              point->y = 0;
+              push(&sendup, &sendupcapacity, &sendupsize, point);
+              pop(&points, &pointssize, &index);
+              flag = 0;
+              break;
+            }
+          } else if (direction == DOWN) {
+            --point->y;
+            if (point->y == 0) {
+              point->y = ctx->l - 1;
+              push(&senddown, &senddowncapacity, &senddownsize, point);
+              pop(&points, &pointssize, &index);
+              flag = 0;
+              break;
+            }
+          } else if (direction == LEFT) {
+            --point->x;
+            if (point->x == 0) {
+              point->x = ctx->l - 1;
+              push(&sendleft, &sendleftcapacity, &sendleftsize, point);
+              pop(&points, &pointssize, &index);
+              flag = 0;
+              break;
+            }
+          } else {
+            ++point->x;
+            if (point->x == ctx->l) {
+              point->x = 0;
+              push(&sendright, &sendrightcapacity, &sendrightsize, point);
+              pop(&points, &pointssize, &index);
+              flag = 0;
+              break;
+            }
+          }
+        }
+        if (flag == 1) {
+          ++index;
         }
       }
     }
+    break;
   }
 
-  free(points);
+  if (sendup != NULL) {
+    free(sendup);
+  }
+  if (senddown != NULL) {
+    free(senddown);
+  }
+  if (sendleft != NULL) {
+    free(sendleft);
+  }
+  if (sendright != NULL) {
+    free(sendright);
+  }
+  if (completed != NULL) {
+    free(completed);
+  }
+  if (points != NULL) {
+    free(points);
+  }
 }
 
 int getseed(int rank, int size) {
@@ -156,4 +245,22 @@ void push(point_t **array, int *capacity, int *size, point_t *element) {
 void pop(point_t **array, int *size, int *index) {
   (*array)[*index] = (*array)[*size - 1];
   --(*size);
+}
+
+int getdirection(void *context) {
+  ctx_t *ctx = context;
+  float up = ctx->up * rand();
+  float down = ctx->down * rand();
+  float left = ctx->left * rand();
+  float right = ctx->right * rand();
+
+  if ((up >= down) && (up >= left) && (up >= right)) {
+    return UP;
+  } else if ((down >= up) && (down >= left) && (down >= right)) {
+    return DOWN;
+  } else if ((left >= down) && (left >= up) && (left >= right)) {
+    return LEFT;
+  } else {
+    return RIGHT;
+  }
 }
