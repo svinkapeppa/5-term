@@ -6,7 +6,7 @@
 
 #define MASTER 0
 #define FACTOR 2
-#define PERIOD 500
+#define PERIOD 200
 
 #define UP 200
 #define DOWN 201
@@ -37,14 +37,25 @@ void stats(void *context);
 void experiment(void *context);
 int getseed(int rank, int size);
 void push(point_t **array, int *capacity, int *size, point_t *element);
-void pop(point_t **array, int *size, int *index);
+void pop(point_t **array, int *size, int index);
 int getdirection(void *context);
 void communicate(void *context, int *sendupsize, int *senddownsize, int *sendleftsize,
                  int *sendrightsize, int *recieveupsize, int *recievedownsize,
                  int *recieveleftsize, int *recieverightsize);
 int getdestination(void *context, int direction);
-void update();
-
+void update(void *context, point_t *sendup, point_t *senddown,
+            point_t *sendleft, point_t *sendright, int *sendupsize,
+            int *senddownsize, int *sendleftsize, int *sendrightsize,
+            int *recieveupsize, int *recievedownsize, int *recieveleftsize,
+            int *recieverightsize, point_t *points, int *pointscapacity,
+            int *pointssize);
+void finish(void *context, int *completedsize, int *done);
+void work(void *context, point_t *points, int *pointssize,
+          point_t *completed, int *completedcapacity, int *completedsize,
+          point_t *sendup, int *sendupcapacity, int *sendupsize,
+          point_t *senddown, int *senddowncapacity, int *senddownsize,
+          point_t *sendleft, int *sendleftcapacity, int *sendleftsize,
+          point_t *sendright, int *sendrightcapacity, int *sendrightsize);
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   int rank, size;
@@ -133,68 +144,26 @@ void experiment(void *context) {
   int sendrightcapacity = ctx->N;
   point_t *sendright = malloc(ctx->N * sizeof(point_t));
 
+  int done = 0;
   while (1) {
-    int index = 0;
-    while (index < pointssize) {
-      int flag = 1;
-      point_t *point = points + index;
-      for (int i = 0; i < PERIOD; ++i) {
-        if (point->iteration == ctx->n) {
-          push(&completed, &completedcapacity, &completedsize, point);
-          pop(&points, &pointssize, &index);
-          flag = 0;
-          break;
-        } else {
-          ++point->iteration;
-          int direction = getdirection(ctx);
-          if (direction == UP) {
-            ++point->y;
-            if (point->y >= ctx->l) {
-              point->y = 0;
-              push(&sendup, &sendupcapacity, &sendupsize, point);
-              pop(&points, &pointssize, &index);
-              flag = 0;
-              break;
-            }
-          } else if (direction == DOWN) {
-            --point->y;
-            if (point->y < 0) {
-              point->y = ctx->l - 1;
-              push(&senddown, &senddowncapacity, &senddownsize, point);
-              pop(&points, &pointssize, &index);
-              flag = 0;
-              break;
-            }
-          } else if (direction == LEFT) {
-            --point->x;
-            if (point->x < 0) {
-              point->x = ctx->l - 1;
-              push(&sendleft, &sendleftcapacity, &sendleftsize, point);
-              pop(&points, &pointssize, &index);
-              flag = 0;
-              break;
-            }
-          } else {
-            ++point->x;
-            if (point->x >= ctx->l) {
-              point->x = 0;
-              push(&sendright, &sendrightcapacity, &sendrightsize, point);
-              pop(&points, &pointssize, &index);
-              flag = 0;
-              break;
-            }
-          }
-          if (flag == 1) {
-           ++index;
-          }
-        }
-      }
-    }
+    work(ctx, points, &pointssize,
+         completed, &completedcapacity, &completedsize,
+         sendup, &sendupcapacity, &sendupsize,
+         senddown, &senddowncapacity, &senddownsize,
+         sendleft, &sendleftcapacity, &sendleftsize,
+         sendright, &sendrightcapacity, &sendrightsize);
     communicate(ctx, &sendupsize, &senddownsize, &sendleftsize,
                 &sendrightsize, &recieveupsize, &recievedownsize,
                 &recieveleftsize, &recieverightsize);
-    
-    update();
+    update(ctx, sendup, senddown, sendleft, sendright,
+           &sendupsize, &senddownsize, &sendleftsize,
+           &sendrightsize, &recieveupsize, &recievedownsize,
+           &recieveleftsize, &recieverightsize, points,
+           &pointscapacity, &pointssize);
+    if (done == 1) {
+      break;
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
     break;
   }
 
@@ -237,8 +206,8 @@ void push(point_t **array, int *capacity, int *size, point_t *element) {
   }
 }
 
-void pop(point_t **array, int *size, int *index) {
-  (*array)[*index] = (*array)[*size - 1];
+void pop(point_t **array, int *size, int index) {
+  (*array)[index] = (*array)[(*size) - 1];
   --(*size);
 }
 
@@ -269,7 +238,7 @@ void communicate(void *context, int *sendupsize, int *senddownsize, int *sendlef
   int left = getdestination(ctx, LEFT);
   int right = getdestination(ctx, RIGHT);
 
-  MPI_Request *sizes = malloc(sizeof(MPI_Request) * 8);
+  MPI_Request *sizes = malloc(8 * sizeof(MPI_Request));
 
   MPI_Isend(sendupsize, 1, MPI_INT, up, 0, MPI_COMM_WORLD, sizes + 0);
   MPI_Isend(senddownsize, 1, MPI_INT, down, 1, MPI_COMM_WORLD, sizes + 1);
@@ -282,6 +251,7 @@ void communicate(void *context, int *sendupsize, int *senddownsize, int *sendlef
   MPI_Irecv(recieverightsize, 1, MPI_INT, right, 2, MPI_COMM_WORLD, sizes + 7);
 
   MPI_Waitall(8, sizes, MPI_STATUS_IGNORE);
+  free(sizes);
 }
 
 int getdestination(void *context, int direction) {
@@ -319,6 +289,147 @@ int getdestination(void *context, int direction) {
   return row * ctx->a + column;
 }
 
-void update() {
-  return;
+void update(void *context, point_t *sendup, point_t *senddown,
+            point_t *sendleft, point_t *sendright, int *sendupsize,
+            int *senddownsize, int *sendleftsize, int *sendrightsize,
+            int *recieveupsize, int *recievedownsize, int *recieveleftsize,
+            int *recieverightsize, point_t *points, int *pointscapacity,
+            int *pointssize) {
+  ctx_t *ctx = context;
+  point_t *recieveup = malloc(*recieveupsize * sizeof(point_t));
+  point_t *recievedown = malloc(*recievedownsize * sizeof(point_t));
+  point_t *recieveleft = malloc(*recieveleftsize * sizeof(point_t));
+  point_t *recieveright = malloc(*recieverightsize * sizeof(point_t));
+  
+  int up = getdestination(ctx, UP);
+  int down = getdestination(ctx, DOWN);
+  int left = getdestination(ctx, LEFT);
+  int right = getdestination(ctx, RIGHT);
+
+  MPI_Request *data= malloc(8 * sizeof(MPI_Request));
+
+  MPI_Issend(sendup, *sendupsize * sizeof(point_t), MPI_BYTE, up, 0, MPI_COMM_WORLD, data + 0);
+  MPI_Issend(senddown, *senddownsize * sizeof(point_t), MPI_BYTE, down, 1, MPI_COMM_WORLD, data + 1);
+  MPI_Issend(sendleft, *sendleftsize * sizeof(point_t), MPI_BYTE, left, 2, MPI_COMM_WORLD, data + 2);
+  MPI_Issend(sendright, *sendrightsize * sizeof(point_t), MPI_BYTE, right, 3 , MPI_COMM_WORLD, data + 3);
+
+  MPI_Irecv(recieveup, *recieveupsize * sizeof(point_t), MPI_BYTE, up, 1, MPI_COMM_WORLD, data + 4);
+  MPI_Irecv(recievedown, *recievedownsize * sizeof(point_t), MPI_BYTE, down, 0, MPI_COMM_WORLD, data + 5);
+  MPI_Irecv(recieveleft, *recieveleftsize * sizeof(point_t), MPI_BYTE, left, 3, MPI_COMM_WORLD, data + 6);
+  MPI_Irecv(recieveright, *recieverightsize * sizeof(point_t), MPI_BYTE, right, 2, MPI_COMM_WORLD, data + 7);
+
+  MPI_Waitall(8, data, MPI_STATUS_IGNORE);
+
+  for (int i = 0; i < *recieveupsize; ++i) {
+    push(&points, pointscapacity, pointssize, recieveup + i);
+  }
+  for (int i = 0; i < *recievedownsize; ++i) {
+    push(&points, pointscapacity, pointssize, recievedown + i);
+  }
+  for (int i = 0; i < *recieveleftsize; ++i) {
+    push(&points, pointscapacity, pointssize, recieveleft + i);
+  }
+  for (int i = 0; i < *recieverightsize; ++i) {
+    push(&points, pointscapacity, pointssize, recieveright + i);
+  }
+
+  *sendupsize = 0;
+  *senddownsize = 0;
+  *sendleftsize = 0;
+  *sendrightsize = 0;
+
+  free(recieveup);
+  free(recievedown);
+  free(recieveleft);
+  free(recieveright);
+  free(data);
+}
+
+void finish(void *context, int *completedsize, int *done) {
+  ctx_t *ctx = context;
+  int alreadycompleted = 0;
+  MPI_Reduce(completedsize, &alreadycompleted, 1, MPI_INT, MPI_SUM, MASTER, MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
+  if ((ctx->rank == MASTER) && (alreadycompleted == ctx->size * ctx->N)) {
+    *done = 1;
+  }
+  MPI_Bcast(done  , 1, MPI_INT, MASTER, MPI_COMM_WORLD);
+  if (*done == 1) {
+    int *distribution = malloc(ctx->size * sizeof(int));
+    MPI_Gather(completedsize, 1, MPI_INT, distribution, 1, MPI_INT, MASTER, MPI_COMM_WORLD);
+    if (ctx->rank == MASTER) {
+      stats(ctx);
+      for (int i = 0; i < ctx->size; ++i) {
+        printf("rank = %d points = %d\n", i, distribution[i]);
+      }
+    }
+    free(distribution);
+  }
+}
+
+void work(void *context, point_t *points, int *pointssize,
+          point_t *completed, int *completedcapacity, int *completedsize,
+          point_t *sendup, int *sendupcapacity, int *sendupsize,
+          point_t *senddown, int *senddowncapacity, int *senddownsize,
+          point_t *sendleft, int *sendleftcapacity, int *sendleftsize,
+          point_t *sendright, int *sendrightcapacity, int *sendrightsize) {
+  ctx_t *ctx = context;
+  int index = 0;
+  while (index < *pointssize) {
+    int flag = 1;
+    point_t *point = points + index;
+    for (int i = 0; i < PERIOD; ++i) {
+      if (point->iteration == ctx->n) {
+        flag = 0;
+        push(&completed, completedcapacity, completedsize, point);
+        pop(&points, pointssize, index);
+        break;
+      }
+      ++point->iteration;
+      int direction = getdirection(ctx);
+      if (direction == UP) {
+        ++point->y;
+      }
+      if (direction == DOWN) {
+        --point->y;
+      }
+      if (direction == LEFT) {
+        --point->x;
+      }
+      if (direction == RIGHT) {
+        ++point->x;
+      }
+      if (point->y >= ctx->l) {
+          flag = 0;
+          point->y = 0;
+          push(&sendup, sendupcapacity, sendupsize, point);
+          pop(&points, pointssize, index);
+          break;
+      }
+      if (point->y < 0) {
+        flag = 0;
+        point->y = ctx->l - 1;
+        push(&senddown, senddowncapacity, senddownsize, point);
+        pop(&points, pointssize, index);
+        break;
+      }
+      if (point->x >= ctx->l) {
+        flag = 0;
+        point->x = 0;
+        push(&sendright, sendrightcapacity, sendrightsize, point);
+        pop(&points, pointssize, index);
+        break;
+      }
+      if (point->x < 0) {
+        flag = 0;
+        point->x = ctx->l - 1;
+        push(&sendleft, sendleftcapacity, sendleftsize, point);
+        pop(&points, pointssize, index);
+        break;
+      }
+    }
+    if (flag == 1) {
+      ++index;
+    }
+  } 
 }
