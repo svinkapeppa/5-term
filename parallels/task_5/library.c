@@ -309,7 +309,7 @@ void stats(void *context, int *distribution, struct timeval start) {
     double worktime = ((end.tv_sec - start.tv_sec) * 1000000u +\
                        end.tv_usec - start.tv_usec) / 1.e6;
 
-    fprintf(fd, "%d %d %d %d %d %.2f %.2f %.2f %.2f %.4f\n",
+    fprintf(fd, "%d %d %d %d %d %.2f %.2f %.2f %.2f %.4fs\n",
             ctx->l, ctx->a, ctx->b, ctx->n, ctx->N,
             ctx->left, ctx->right, ctx->up, ctx->down, worktime);
     for (int i = 0; i < ctx->size; ++i) {
