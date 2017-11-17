@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-hdfs fsck $1 | python script.py
+hdfs fsck $1 2>/dev/null | python script.py
