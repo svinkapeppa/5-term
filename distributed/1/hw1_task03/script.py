@@ -3,13 +3,8 @@
 import re
 import sys
 
-reload(sys)
-sys.setdefaultencoding('utf-8')
-
 for line in sys.stdin:
-    m = re.search('Total blocks \(validated\):"\s+\d.+', line)
+    m = re.search('Total blocks \(validated\):\s+(\d+)', line, flags=re.UNICODE)
     if m is not None:
-        n = re.search('\d+', line)
-        if n is not None:
-            print n.group(0)
-            sys.exit()
+        print m.group(1)
+        sys.exit()
