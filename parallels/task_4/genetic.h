@@ -8,8 +8,8 @@
 #include "thread_pool.h"
 
 #define ARRAY_SIZE 655360
-#define MUTATION_RATE 0.1
-#define SELECTION_RATE 0.75
+#define MUTATION_RATE 0.05
+#define SELECTION_RATE 0.8
 
 typedef struct route_t {
   int *route;
