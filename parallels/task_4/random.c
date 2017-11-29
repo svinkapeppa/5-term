@@ -79,7 +79,7 @@ void random_data_destroy(random_data_t *data) {
   free(data->array);
 }
 
-int random(random_data_t *data) {
+int rnd(random_data_t *data) {
   if (data->last == random_size) {
     data->last = 0;
     free(data->array);
