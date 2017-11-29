@@ -67,8 +67,8 @@ void random_destroy() {
     free(random_arrays[i]);
   }
   free(random_arrays);
-  pthread_mutex_unlock(&random_lock);
   pthread_cond_signal(&random_cond_full);
+  pthread_mutex_unlock(&random_lock);
   pthread_join(random_thread, NULL);
   pthread_mutex_destroy(&random_lock);
   pthread_cond_destroy(&random_cond_full);
@@ -89,9 +89,8 @@ int random(random_data_t *data) {
       pthread_cond_wait(&random_cond_empty, &random_lock);
     }
     data->array = random_arrays[--random_last];
-    pthread_mutex_unlock(&random_lock);
-
     pthread_cond_signal(&random_cond_full);
+    pthread_mutex_unlock(&random_lock);
   }
 
   return data->array[data->last++];
