@@ -23,8 +23,8 @@ typedef struct thread_pool_t {
   pthread_mutex_t lock;
 } thread_pool_t;
 
-void thread_pool_init(thread_pool_t *tp, int *size, int *capacity);
-int thread_pool_put(thread_pool_t *tp, task_t *task);
+void thread_pool_init(thread_pool_t *tp, int size, int capacity);
+int thread_pool_put(thread_pool_t *tp, task_t task);
 void thread_pool_barrier(thread_pool_t *tp);
 void thread_pool_destroy(thread_pool_t *tp);
 

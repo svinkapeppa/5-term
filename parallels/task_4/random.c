@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -40,15 +41,15 @@ void *generate(void *arg) {
   return NULL;
 }
 
-void random_init(int *seed, int *size, int *capacity) {
+void random_init(int seed, int size, int capacity) {
   random_alive = 1;
-  random_seed = *seed;
-  random_size = *size;
+  random_seed = seed;
+  random_size = size;
   random_last = 0;
-  random_max_capacity = *capacity;
-  random_lock = PTHREAD_MUTEX_INITIALIZER;
-  random_cond_full = PTHREAD_COND_INITIALIZER;
-  random_cond_empty = PTHREAD_COND_INITIALIZER;
+  random_max_capacity = capacity;
+  pthread_mutex_init(&random_lock, NULL);
+  pthread_cond_init(&random_cond_full, NULL);
+  pthread_cond_init(&random_cond_empty, NULL);
   random_arrays = calloc(random_max_capacity, sizeof(int *));
   assert(random_arrays); 
 
