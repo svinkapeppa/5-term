@@ -15,9 +15,9 @@
 ## Crossover
 Crossover works as follows: we select two individuals, select some verticies in the former one and then complete it with the remaining vertices taken in the order in which they are located in the latter one.
 
-### Mutation
+## Mutation
 Mutation works as follows: we simply swap two verticies in the route.
 
-#### Selection
+## Selection
 Selection works as follows: from the two random individuals we select the one, whose fitness function value is better.
 
