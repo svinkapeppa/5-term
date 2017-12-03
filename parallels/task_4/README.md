@@ -9,7 +9,7 @@
 &emsp;genetic.h - header file  
 &emsp;genetic.c - implementation of the genetic part  
 &emsp;create.c - small function to create graph  
-&emsp;main.c - main program which starts everything
+&emsp;main.c - main program which starts everything  
 &emsp;plots.ipynb - plots which were asked in the task
 
 ## Crossover
