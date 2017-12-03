@@ -1,13 +1,10 @@
 # Multiprocessor computing
 
-task_1:
+## Tasks
+In each folder there is a task.pdf file which explains what was done or was needed to be done
 
-&emsp; Read task.pdf in order to understand the task.
+### Lections
+Lections.pdf - bunch of notes done by me during the first part of the course
 
-task_2:
-
-&emsp; Read task.pdf in order to understand the task.
-
-task_3:
-
-&emsp; Read task.pdf in order to understand the task.
+### Seminars
+seminar_*.txt - notes from seminars
