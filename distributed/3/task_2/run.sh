@@ -18,7 +18,7 @@ yarn jar /opt/cloudera/parcels/CDH/lib/hadoop-mapreduce/hadoop-streaming.jar \
     -D mapreduce.job.name="SitePageLifespan.stage2" \
     -D mapreduce.job.reduces=1 \
     -files limit.py \
-    -mapper limit.py \
+    -mapper cat \
     -reducer limit.py \
     -input ${OUT_DIR}/tmp \
     -output ${OUT_DIR}/res
